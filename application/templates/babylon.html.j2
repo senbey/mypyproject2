@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml">
+
+<head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+
+    {% if title %}
+    <title>- Títol: {{ title }} - </title>
+    {% else %}
+    <title>- Próxim dia, porta títol! - </title>
+    {% endif %}
+
+    <style>
+        html,
+        body {
+            overflow: hidden;
+            width: 100%;
+            height: 100%;
+            margin: 0;
+            padding: 0;
+        }
+
+        #renderCanvas {
+            width: 100%;
+            height: 100%;
+            touch-action: none;
+        }
+    </style>
+
+    <script src="https://code.jquery.com/pep/0.4.3/pep.js"></script>
+    <script src="https://cdn.babylonjs.com/babylon.js"></script>
+</head>
+
+<body>
+    <canvas id="renderCanvas" touch-action="none"></canvas> //touch-action="none" for best results from PEP
+
+    <script>
+
+        var usuari = {{ user| tojson }};
+
+        var canvas = document.getElementById("renderCanvas"); // Get the canvas element 
+        var engine = new BABYLON.Engine(canvas, true); // Generate the BABYLON 3D engine
+
+        /******* Add the create scene function ******/
+
+        var createScene = function () {
+            var scene = new BABYLON.Scene(engine);
+
+            var camera = new BABYLON.ArcRotateCamera("Camera", -Math.PI / 2, Math.PI / 3, 50, BABYLON.Vector3.Zero(), scene);
+            camera.attachControl(canvas, true);
+
+            var light = new BABYLON.HemisphericLight("light1", new BABYLON.Vector3(0, 3, 1), scene);
+            light.intensity = 0.7;
+
+            // Environment Texture
+            var hdrTexture = BABYLON.CubeTexture.CreateFromPrefilteredData("textures/lloc01.dds", scene);
+
+            scene.imageProcessingConfiguration.exposure = 0.6;
+            scene.imageProcessingConfiguration.contrast = 1.6;
+
+            // Skybox
+            var hdrSkybox = BABYLON.Mesh.CreateBox("hdrSkyBox", 1000.0, scene);
+            var hdrSkyboxMaterial = new BABYLON.PBRMaterial("skyBox", scene);
+            hdrSkyboxMaterial.backFaceCulling = false;
+            hdrSkyboxMaterial.reflectionTexture = hdrTexture.clone();
+            hdrSkyboxMaterial.reflectionTexture.coordinatesMode = BABYLON.Texture.SKYBOX_MODE;
+            hdrSkyboxMaterial.microSurface = 1.0;
+            hdrSkyboxMaterial.disableLighting = true;
+            hdrSkybox.material = hdrSkyboxMaterial;
+            hdrSkybox.infiniteDistance = true;
+
+            var groundWidth = 10;
+            var groundHeight = 20;
+            var groundDepth = 20;
+
+            var ground = BABYLON.MeshBuilder.CreateBox("ground1", { width: groundWidth, 
+                                                                    height: groundHeight, 
+                                                                    depth: groundDepth, subdivisions: 25 }, scene);
+                ground.addRotation(0,0, -Math.PI/2);
+
+            var sphereMetal = BABYLON.Mesh.CreateSphere("sphereMetal", 48, 12.0, scene);
+                sphereMetal.translate(new BABYLON.Vector3(0, 0.1, 0.1), 60);
+
+
+            var metal = new BABYLON.PBRMaterial("metal", scene);
+            metal.reflectionTexture = hdrTexture;
+            metal.microSurface = 0.96;
+            metal.reflectivityColor = new BABYLON.Color3(0.85, 0.85, 0.85);
+            metal.albedoColor = new BABYLON.Color3(0.01, 0.01, 0.01);
+            sphereMetal.material = metal;
+
+
+            //Create dynamic texture
+            var textureResolution = 512;
+            var textureGround = new BABYLON.DynamicTexture("dynamic texture", { width: 512, height: 256 }, scene);
+            var textureContext = textureGround.getContext();
+
+            var materialGround = new BABYLON.StandardMaterial("Mat", scene);
+            materialGround.diffuseTexture = textureGround;
+            ground.material = materialGround;
+
+            //Add text to dynamic texture
+            var font = "bold 44px monospace";
+            textureGround.drawText("Hola " + usuari.username + "!", 20, 200, font, "green", "white", true, true);
+
+            sphereMetal.actionManager = new BABYLON.ActionManager(scene); 
+
+            sphereMetal.actionManager.registerAction(
+                new BABYLON.ExecuteCodeAction(
+                        BABYLON.ActionManager.OnPickTrigger, 
+                        function (object) {	window.location = "/index?nom=" + usuari.username		
+                            }
+                        )
+            );               
+
+            return scene;
+
+        };
+        /******* End of the create scene function ******/
+
+        var scene = createScene(); //Call the createScene function
+
+        // Register a render loop to repeatedly render the scene
+        engine.runRenderLoop(function () {
+            scene.render();
+        });
+
+        // Watch for browser/canvas resize events
+        window.addEventListener("resize", function () {
+            engine.resize();
+        });
+    </script>
+
+</body>
+
+</html>

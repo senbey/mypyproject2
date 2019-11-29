@@ -1,0 +1,26 @@
+<html>
+
+<head>
+    <title>{{ title }} - !!!</title>
+</head>
+
+<body>
+
+    {% if user.username %}
+    <h1>Hola {{ user.username }}!</h1>
+    {% else %}
+    <h1>Com ta dius?</h1>
+    {% endif %}
+
+    <form action='render'>
+
+        {% if user.username %}
+        <input type=text name='nom' value='{{ user.username }}'></input>
+        {% else %}
+        <input type=text name='nom'></input>
+        {% endif %}
+        <input type='submit' />
+    </form>
+</body>
+
+</html>

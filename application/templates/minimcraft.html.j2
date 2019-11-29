@@ -1,0 +1,503 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml">
+
+<head><meta http-equiv="Content-Type" content="text/html; charset=gb18030">
+
+
+	{% if title %}
+	<title>- Títol: {{ title }} - </title>
+	{% else %}
+	<title>- El mon de cubs - </title>
+	{% endif %}
+
+	<style>
+		html,
+		body {
+			overflow: hidden;
+			width: 100%;
+			height: 100%;
+			margin: 0;
+			padding: 0;
+		}
+
+		#renderCanvas {
+			width: 100%;
+			height: 100%;
+			touch-action: none;
+		}
+	</style>
+
+	{% for js_url in js_urls %}<script src="{{ js_url }}"></script>
+	{% endfor %}
+
+</head>
+
+<body>
+
+	<canvas id="renderCanvas" touch-action="none"></canvas> //touch-action="none" for best results from PEP
+
+	<script>
+
+		var usuari = {{ user| tojson }};
+
+		var canvas = document.getElementById("renderCanvas"); // Get the canvas element
+		var engine = new BABYLON.Engine(canvas, true); // Generate the BABYLON 3D engine
+
+		var cubsDestruir = [];
+
+		function cridaAjax(strScene, accio, tractaDades) {
+			switch(accio){
+				case 'desar':
+					url_accio = "/desar"
+				break;
+				case 'rebre':
+					url_accio = "/rebre"
+				break;
+				default:
+					return
+				break;
+			}
+
+			$.ajax({
+					method: "POST",
+					url: url_accio,
+					contentType: "application/json; charset=utf-8",
+					data: strScene,
+					dataType: "text"
+				}).done(function (msg) { tractaDades(msg) })
+		}
+
+		function avisRestableix(boto,textMomentani,textOriginal,colorOriginal){
+			boto.text = textMomentani;
+			setTimeout(function () {
+				boto.color = colorOriginal;
+				boto.text = textOriginal;
+			}, 1000);
+		};
+
+
+		/******* Add the create scene function ******/
+
+		var createScene = function () {
+			var scene = new BABYLON.Scene(engine);
+
+			var camera = new BABYLON.ArcRotateCamera("Camera", Math.PI/3,
+																Math.PI/2.1 , 80, BABYLON.Vector3.Zero(), scene);
+
+			var light = new BABYLON.HemisphericLight("light1", new BABYLON.Vector3(0, 3, 1), scene);
+			light.intensity = 0.7;
+
+			camera.attachControl(canvas, true);
+
+
+			// Environment Texture
+			var hdrTexture = BABYLON.CubeTexture.CreateFromPrefilteredData("textures/skybox03.dds", scene);
+
+			// Skybox
+			var hdrSkybox = BABYLON.Mesh.CreateBox("hdrSkyBox", 1000.0, scene);
+			var hdrSkyboxMaterial = new BABYLON.PBRMaterial("skyBox", scene);
+
+			hdrSkyboxMaterial.backFaceCulling = false;
+			hdrSkyboxMaterial.reflectionTexture = hdrTexture.clone();
+			hdrSkyboxMaterial.reflectionTexture.coordinatesMode = BABYLON.Texture.SKYBOX_MODE;
+			hdrSkyboxMaterial.microSurface = 1.0;
+			hdrSkyboxMaterial.disableLighting = true;
+			hdrSkybox.material = hdrSkyboxMaterial;
+			hdrSkybox.infiniteDistance = true;
+			hdrSkybox.isPickable = false;
+
+			scene.imageProcessingConfiguration.exposure = 0.6;
+			scene.imageProcessingConfiguration.contrast = 1.6;
+
+			var pas = 5
+			var midaCub = pas;
+
+			var cubOrigen = BABYLON.MeshBuilder.CreateBox("cub0", {
+				size: midaCub,
+				subdivisions: 2
+			}, scene);
+
+			camera.setTarget(cubOrigen);
+
+			//camera.setPosition(cubOrigen);
+			/*
+			var terraPlana = BABYLON.MeshBuilder.CreatePlane("terraPlana", 
+																{width: 5000, height: 5000, 
+																sideOrientation: BABYLON.Mesh.DOUBLESIDE,
+																subdivisions: 50}, scene);
+			terraPlana.position = new BABYLON.Vector3(0, -pas*2, 0);
+			terraPlana.rotate(BABYLON.Axis.X, Math.PI / 2, BABYLON.Space.LOCAL);
+			*/
+
+			var ActualColor = "#555555";
+
+			function nouColor()
+			{
+			  return new BABYLON.Color3.FromHexString(ActualColor);
+			}
+
+			function creaBoto(color,etiqueta)
+			{
+					botoAltura= 30;
+
+					var button = BABYLON.GUI.Button.CreateSimpleButton("but", etiqueta);
+					button.width = 0.8;
+					button.height = botoAltura +"px";
+					button.background = color; //"#00FF00";
+					if(color!='#ffffff') 
+					{
+					 button.color = "white";
+					}
+					else button.color = "black";	
+					button.cornerRadius = 10;
+					button.fontSizeInPixels = 12;
+					button.verticalAlignment = BABYLON.GUI.Control.HORIZONTAL_ALIGNMENT_TOP;
+
+					return button;
+			}
+
+			function f_creaCopia(pickedMesh, faceId) {
+					var cara = Math.floor(faceId/2);
+					//var nou = pickedMesh.clone("nou");
+					var nou = f_creaCub(pickedMesh.position);
+					//alert(String(pickedMesh.position));
+						switch (cara) {
+							case 4:
+								nou.position.y += pas;
+								break;
+							case 5:
+								nou.position.y -= pas;
+								break;
+							case 3:
+								nou.position.x -= pas;
+								break;
+							case 2:
+								nou.position.x += pas;
+								break;
+							case 0:
+								nou.position.z += pas;
+								break;
+							case 1:
+								nou.position.z -= pas;
+								break;
+						}
+				return nou;
+			}
+
+
+			function f_creaCub(posicio) {
+				var options = {
+						size: pas,
+						subdivisions: 2
+					};
+
+				var cub = BABYLON.MeshBuilder.CreateBox("cubn", options, scene);
+				//alert(posicio);
+				//cubs[0]=cub;
+				cub.position = new BABYLON.Vector3(posicio.x, posicio.y, posicio.z);
+
+				var myColorMaterial = new BABYLON.StandardMaterial("myColorMaterial", scene);
+
+				myColorMaterial.diffuseColor = nouColor();
+
+				//myColorMaterial.specularColor = new BABYLON.Color3(0.5, 0.1, 0.2);
+				myColorMaterial.emissiveColor = new BABYLON.Color3(0.2, 0.2, 0.2);
+				myColorMaterial.ambientColor = new BABYLON.Color3(0, 0, 0);
+
+				cub.material = myColorMaterial;
+				cub.visibility = 0.9;
+
+				//BABYLON.Tags.AddTagsTo(cub, "cubn");
+
+				return cub;
+			}
+
+			function CubDestruir(x,y,z){
+				this.x = x;
+				this.y = y;
+				this.z = z;
+				this.colorHex = '';
+			}
+
+			cubOrigen.visibility = 0.6;
+
+			scene.actionManager = new BABYLON.ActionManager(scene);
+
+			scene.actionManager.registerAction(
+				new BABYLON.ExecuteCodeAction(
+					//{ trigger: BABYLON.ActionManager.OnKeyDownTrigger, parameter: 'r'}
+					BABYLON.ActionManager.OnKeyDownTrigger,
+					function (evt) {
+						//var posicio = new BABYLON.Vector3(camera.target.x,camera.target.y,camera.target.z) ;
+						var posicio = cubOrigen.position;
+						//ground.position.z += pas;
+
+						switch (evt.sourceEvent.key) {
+							case 'w':
+								posicio.z += pas;
+								break;
+							case 's':
+								posicio.z -= pas;
+								break;
+							case 'a':
+								posicio.x -= pas;
+								break;
+							case 'd':
+								posicio.x += pas;
+								break;
+							case 'l':
+								posicio.y -= pas;
+								break;
+							case 'p':
+								posicio.y += pas;
+								break;
+							//case ' ':
+							//    f_creaCub(ground.position);
+							//    break;
+						}
+						//console.log(posicio);
+						//camera.setTarget(posicio);
+
+					}
+				)
+			);
+
+				//When pointer down event is raised
+				scene.onPointerDown = function (evt, pickResult) {
+					 //button
+					boto_dret = 2;
+					boto_esquerra = 0;
+
+					if(pickResult.hit)
+					{
+
+						//console.log(rectangle._children[rectangle._children.length-1].isChecked);
+						if (rectangle._children[rectangle._children.length-1].isChecked){
+							boto_crea = boto_dret;
+							boto_destrueix = boto_esquerra;
+						}
+						else
+						{
+							boto_crea = boto_esquerra;
+							boto_destrueix = boto_dret;
+						}
+					}
+
+					if (pickResult.hit) {
+						//console.log(evt.button);
+						if((evt.button==boto_crea) && (pickResult.pickedMesh.id!="terraPlana"))
+						{
+						   //cubs[cubs.length] =
+							f_creaCopia(pickResult.pickedMesh, pickResult.faceId);
+							//console.log(scene);
+						}
+						//console.log(["cub0","terraPlana"].indexOf(pickResult.pickedMesh.id));
+						if((evt.button==boto_destrueix) &&  (["cub0","terraPlana"].indexOf(pickResult.pickedMesh.id)<0)) //pickResult.pickedMesh.id!="cub0")
+						{
+							var pos = pickResult.pickedMesh.position;
+							if(pickResult.pickedMesh.id=="cubr"){
+							  cubsDestruir[cubsDestruir.length] =  new CubDestruir(pos.x,pos.y,pos.z);
+							  }
+							
+							//pickResult.pickedMesh.material.wireframe = true;
+							pickResult.pickedMesh.dispose();
+
+							//console.log(nouDestruir);
+						}
+						//else console.log(pickResult.pickedMesh);
+					}
+
+				};
+
+				// GUI
+				var advancedTexture = BABYLON.GUI.AdvancedDynamicTexture.CreateFullscreenUI("UI");
+
+				var createRectangle = function() {
+					var rect1 = new BABYLON.GUI.Rectangle();
+					rect1.width = "150px"
+					rect1.height = 0.9;
+					rect1.cornerRadius = 20;
+					rect1.color = "White";
+					rect1.alpha = 0.8;
+					rect1.thickness = 4;
+					rect1.background = "#9cb3d9";
+					advancedTexture.addControl(rect1);
+
+					var button = [];
+
+					button.push(creaBoto("#00FF00","Gespa"));
+					button.push(creaBoto("#FF0000","Foc"));
+					button.push(creaBoto("#0000FF","Aigua"));
+					button.push(creaBoto("#555555","Roca"));
+					button.push(creaBoto("#933a07","Fusta"));
+					button.push( creaBoto("#000000","Carbó"));
+					button.push(creaBoto("#ffea00","Or"));
+					button.push(creaBoto("#ffffff","Neu"));
+
+					var botoDesar = creaBoto("#97b8b0","Save the World");
+					button.push(botoDesar);					
+					botoDesar.children[0].color="#000000";
+					botoDesar.isVisible = false;
+
+					var botoRebre = creaBoto("#97b8b0","Give me the World");
+					button.push(botoRebre);						
+					botoRebre.children[0].color="#000000";
+
+					//botoDesar.onPointerClickObservable._observers[0].unregisterOnNextCall=true;
+
+					function resituaBoto(element, index, array) {
+							element.onPointerClickObservable.add(function () {
+								ActualColor = element.background;
+								//element.children[0].text = "Clicks: " ;
+							});
+
+							element.top = (index*(botoAltura+5) + 8) + 'px';
+							rect1.addControl(element);
+							}
+
+					button.forEach(resituaBoto);
+
+					/* -------------------------- */
+
+					//var timesRun = 0;
+					var interval = setInterval(function(){
+						//timesRun += 1;
+						//if(timesRun === 60){ clearInterval(interval); }
+						//var startTime = new Date().getTime();
+						desaElMon();
+						
+					}, 500); 
+
+
+					function desaElMon()
+					{
+
+							var cubsEnviar = [];
+							cubsDestruir.forEach(function (element, index, array){
+																	cubsEnviar.push(element);
+																	}
+																);
+							scene.getMeshesByID('cubn').forEach(function (element, index, array){
+																	var CubInfo = element.absolutePosition;
+																	CubInfo.colorHex = element.material.diffuseColor.toHexString();
+																	cubsEnviar.push(CubInfo);
+																	}
+																);
+							//La camara segueix al cub, per tant passant la pos del cub es suficient. faltaria orientació
+							var posicio = cubOrigen.position;
+							strScene =JSON.stringify( {'camara':{'x':posicio.x, 
+																 'y':posicio.y, 
+																 'z':posicio.z,
+																 'usuari':'josep'
+																 },
+													   'cubs':cubsEnviar} );
+
+							//console.log(strScene);
+							var cubsDesats = scene.getMeshesByID('cubn');
+							if(cubsEnviar.length >0 )
+							{
+								var textOriginal = botoDesar.children[0].text;
+								var colorOriginal =  botoDesar.children[0].color;
+								botoDesar.children[0].color='#FF5555';
+								botoDesar.children[0].text = 'Desant '+ (cubsDesats.length + cubsDestruir.length) + ' cubs.';
+
+								cridaAjax(strScene,
+										'desar',
+										function(sortida) {
+											//hauriem de marcar tots els cubs com a cubr, per no tonara a desar...
+											var apagat = new BABYLON.Color3(0, 0, 0);                         
+											cubsDesats.forEach(function (element, index, array)
+														{
+														element.id='cubr';                                                     
+														element.material.emissiveColor = apagat;
+														});
+
+										avisRestableix(botoDesar.children[0],
+														(cubsDesats.length + cubsDestruir.length) + ' cubs desats.',
+														textOriginal,
+														colorOriginal);
+											cubsDestruir.length = 0;
+										});
+							};
+
+					};
+
+					botoDesar.onPointerClickObservable._observers.length=0;
+					botoDesar.onPointerClickObservable.add(function () { desaElMon(); });
+
+					botoRebre.onPointerClickObservable._observers.length=0;
+					strPeticio = '{"a":1, "b":2}'; //es podrien enviar les coordenades de la camara, per exmeple...
+					botoRebre.onPointerClickObservable.add(function rebreElMon() {
+
+							//abans de rebre, marcar els antics com a nous, per esborrar despres...
+							var cubsRecuperats = scene.getMeshesByID('cubr');
+							//Marquem els recuperats com a nous
+							cubsRecuperats.forEach(function (element, index, array){
+																					element.id='cubn';
+																					});
+							cubsDestruir.length = 0; //eliminem els esborrats
+							cridaAjax(strPeticio, 'rebre', function(sortida) {
+														//Ha de torna tot el mon, de moment...
+														totElMon = JSON.parse(sortida.replace(/'/g, '"'));
+														totElMon.forEach(function(unCub){
+																var cub = BABYLON.MeshBuilder.CreateBox("cubr",
+																										{
+																											size: pas,
+																											subdivisions: 2
+																										},
+																											scene);
+																cub.position = new BABYLON.Vector3(unCub.x, unCub.y, unCub.z);
+
+																var myColorMaterial = new BABYLON.StandardMaterial("myColorMaterial", scene);
+																myColorMaterial.diffuseColor = new BABYLON.Color3.FromHexString(unCub.colorhex);
+																cub.material = myColorMaterial;
+																cub.visibility = 0.9;
+																		});
+														//cal esborrar els d'abans marcats com a nous
+														scene.getMeshesByID('cubn').forEach(
+																function (element, index, array){ element.dispose()});
+															}
+									 );
+
+						});
+
+					var checkbox = new BABYLON.GUI.Checkbox();
+					checkbox.width = "40px";
+					checkbox.height = "40px";
+					checkbox.isChecked = true;
+					checkbox.color = "white";
+					checkbox.top="40%";
+
+					rect1.addControl(checkbox);
+					rect1.horizontalAlignment = BABYLON.GUI.Control.HORIZONTAL_ALIGNMENT_RIGHT;
+					rect1.isPointerBlocker = true;
+
+					return rect1;
+				}
+
+				var rectangle = createRectangle();
+				//console.log(rectangle);
+
+			return scene;
+
+		};
+		/******* End of the create scene function ******/
+
+		var scene = createScene(); //Call the createScene function
+
+
+
+		// Register a render loop to repeatedly render the scene
+		engine.runRenderLoop(function () {
+			scene.render();
+		});
+
+		// Watch for browser/canvas resize events
+		window.addEventListener("resize", function () {
+			engine.resize();
+		});
+	</script>
+
+</body>
+
+</html>
